@@ -19,8 +19,7 @@ def notify_new_draft(
 ) -> None:
     """새 초안 생성 알림 (승인 링크 포함)"""
     app_url = os.environ.get("NEXT_PUBLIC_APP_URL", "https://your-app.vercel.app")
-    password = os.environ.get("APPROVE_PASSWORD", "")
-    approve_url = f"{app_url}/approve/{draft_id}?password={password}"
+    approve_url = f"{app_url}/approve/{draft_id}"
 
     payload = {
         "text": "📰 새 기사 감지 — AND센터 X 포스팅 승인 요청",

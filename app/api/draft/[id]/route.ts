@@ -2,24 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 function getSupabase() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_ANON_KEY!;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
   return createClient(url, key);
+}
+
+function verifyAuth(request: NextRequest): boolean {
+  const password = process.env.APPROVE_PASSWORD;
+  if (!password) return true; // 미설정 시 통과 (개발 환경)
+  const auth = request.headers.get("Authorization") ?? "";
+  return auth === `Bearer ${password}`;
 }
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const draftId = params.id;
-  const password = request.nextUrl.searchParams.get("password") ?? "";
-
-  // 비밀번호 검증
-  const approvePassword = process.env.APPROVE_PASSWORD;
-  if (approvePassword && password !== approvePassword) {
+  if (!verifyAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const draftId = params.id;
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("drafts")

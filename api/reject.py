@@ -2,6 +2,9 @@
 POST /api/reject
 승인 웹페이지 거절 버튼에서 호출됩니다.
 
+인증:
+  Authorization: Bearer <APPROVE_PASSWORD>
+
 요청 바디:
   { "draft_id": "uuid" }
 """
@@ -17,8 +20,22 @@ from lib.supabase_client import get_draft_with_article, reject_draft
 from lib.slack_notifier import notify_rejected
 
 
+def _verify_auth(headers) -> bool:
+    required = os.environ.get("APPROVE_PASSWORD", "")
+    if not required:
+        return True
+    auth_header = headers.get("Authorization") or headers.get("authorization") or ""
+    if not auth_header.startswith("Bearer "):
+        return False
+    return auth_header[len("Bearer "):].strip() == required
+
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
+        if not _verify_auth(self.headers):
+            self._respond(401, {"status": "error", "message": "인증 실패"})
+            return
+
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length))
@@ -38,7 +55,7 @@ class handler(BaseHTTPRequestHandler):
                 return
 
             reject_draft(draft_id)
-            article_title = draft.get("articles", {}).get("title", "")
+            article_title = (draft.get("articles") or {}).get("title", "")
             try:
                 notify_rejected(article_title)
             except Exception:
@@ -62,9 +79,10 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = os.environ.get("NEXT_PUBLIC_APP_URL", "")
+        self.send_header("Access-Control-Allow-Origin", origin)
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
     def log_message(self, format, *args):
         pass

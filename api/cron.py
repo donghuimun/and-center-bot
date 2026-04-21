@@ -2,13 +2,19 @@
 GET /api/cron
 Vercel Cron에 의해 평일 5회 호출됩니다.
 
+스케줄 (UTC → KST):
+  00:00 → 09:00  한국 오전
+  02:00 → 11:00  한국 오전
+  05:00 → 14:00  한국 오후
+  07:00 → 16:00  한국 오후
+  09:00 → 18:00  한국 저녁
+
 파이프라인:
   RSS 파싱 → 중복 체크 → Supabase 저장 → Claude 초안 → Slack 알림
 """
 import sys
 import os
 
-# lib 경로 추가 (Vercel 런타임 호환)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from http.server import BaseHTTPRequestHandler
@@ -20,8 +26,19 @@ from lib.claude_client import generate_draft
 from lib.slack_notifier import notify_new_draft, notify_error
 
 
+MAX_ARTICLES_PER_RUN = 2  # Vercel Free 티어 10초 제한 대응
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # ── CRON_SECRET 인증 ──────────────────────────────
+        cron_secret = os.environ.get("CRON_SECRET", "")
+        if cron_secret:
+            auth = self.headers.get("Authorization", "")
+            if auth != f"Bearer {cron_secret}":
+                self._respond(401, {"error": "Unauthorized"})
+                return
+
         try:
             result = run_pipeline()
             self._respond(200, result)
@@ -41,22 +58,24 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format, *args):
-        pass  # Vercel 로그는 stdout으로 직접 출력
+        pass
 
 
 def run_pipeline() -> dict:
+    print("[cron] pipeline started")
+
     articles = parse_feed()
     new_count = 0
     draft_count = 0
 
     for article in articles:
-        rss_id = article["rss_id"]
+        if new_count >= MAX_ARTICLES_PER_RUN:
+            break
 
-        # 중복 체크
+        rss_id = article["rss_id"]
         if article_exists(rss_id):
             continue
 
-        # articles 테이블 저장
         article_id = insert_article(
             rss_id=rss_id,
             title=article["title"],
@@ -65,22 +84,21 @@ def run_pipeline() -> dict:
         )
         new_count += 1
 
-        # Claude 초안 생성
         try:
             draft_text = generate_draft(
-                title=article["title"],
-                content=article.get("content", ""),
                 url=article["url"],
+                article_text=article.get("content", ""),
             )
         except Exception as e:
             notify_error(f"Claude 초안 생성 실패: {article['title']}", str(e))
             continue
 
-        # drafts 테이블 저장
-        draft_id = insert_draft(article_id=article_id, draft_text=draft_text)
+        draft_id = insert_draft(
+            article_id=article_id,
+            draft_text=draft_text,
+        )
         draft_count += 1
 
-        # Slack 알림
         try:
             notify_new_draft(
                 title=article["title"],

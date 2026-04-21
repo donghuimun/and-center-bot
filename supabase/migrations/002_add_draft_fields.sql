@@ -1,0 +1,8 @@
+-- 002: drafts 테이블에 KR/EN 이중 초안 + 분석 프레임 필드 추가
+
+ALTER TABLE drafts
+  ADD COLUMN IF NOT EXISTS draft_text_en TEXT,
+  ADD COLUMN IF NOT EXISTS tags_kr  JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS tags_en  JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS frame    TEXT,
+  ADD COLUMN IF NOT EXISTS slot     TEXT DEFAULT 'KR';

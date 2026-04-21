@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState, FormEvent } from "react";
+import { useParams } from "next/navigation";
+import Cookies from "js-cookie";
 
 // ─────────────────────────────────────────
 // Types
@@ -13,7 +14,7 @@ interface DraftData {
   articles: {
     title: string;
     url: string;
-  };
+  } | null;
 }
 
 type PageState =
@@ -27,9 +28,18 @@ type PageState =
 // Helpers
 // ─────────────────────────────────────────
 const MAX_CHARS = 280;
+const AUTH_COOKIE = "approve_token"; // 실제 비밀번호를 저장 (Bearer 토큰으로 사용)
+const COOKIE_EXPIRES_DAYS = 7; // 7일
+
+function getAuthHeaders(): HeadersInit {
+  const token = Cookies.get(AUTH_COOKIE) ?? "";
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 function charCount(text: string) {
-  // X는 URL을 23자로 계산하지만 여기선 단순 글자수 표시
   return text.length;
 }
 
@@ -38,32 +48,54 @@ function charCount(text: string) {
 // ─────────────────────────────────────────
 export default function ApprovePage() {
   const params = useParams<{ id: string }>();
-  const searchParams = useSearchParams();
   const draftId = params.id;
-  const password = searchParams.get("password") ?? "";
 
   const [pageState, setPageState] = useState<PageState>({ type: "loading" });
   const [editedText, setEditedText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  // 비밀번호 확인
-  const approvePassword = process.env.NEXT_PUBLIC_APPROVE_PASSWORD;
-  const requiresAuth = !!approvePassword;
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
-    if (requiresAuth && password !== approvePassword) {
+    // 쿠키 인증 상태 확인 (값이 존재하면 로그인된 것)
+    if (Cookies.get(AUTH_COOKIE)) {
+      fetchDraft();
+    } else {
       setPageState({ type: "auth" });
-      return;
     }
-    fetchDraft();
   }, [draftId]);
+
+  async function handleAuth(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setAuthError("");
+    const formData = new FormData(e.currentTarget);
+    const password = formData.get("password") as string;
+
+    const res = await fetch("/api/verify-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+
+    if (res.ok) {
+      // 비밀번호를 쿠키에 저장 → 이후 API 요청의 Authorization Bearer 토큰으로 사용
+      Cookies.set(AUTH_COOKIE, password, { expires: COOKIE_EXPIRES_DAYS });
+      fetchDraft();
+    } else {
+      setAuthError("비밀번호가 올바르지 않습니다.");
+    }
+  }
 
   async function fetchDraft() {
     setPageState({ type: "loading" });
     try {
-      const res = await fetch(
-        `/api/draft/${draftId}?password=${encodeURIComponent(password)}`
-      );
+      const res = await fetch(`/api/draft/${draftId}`, { headers: getAuthHeaders() });
+      if (res.status === 401) {
+        // 토큰 만료 또는 비밀번호 불일치 → 쿠키 제거 후 재인증
+        Cookies.remove(AUTH_COOKIE);
+        setPageState({ type: "auth" });
+        setAuthError("세션이 만료되었습니다. 다시 로그인해 주세요.");
+        return;
+      }
       if (!res.ok) throw new Error("초안을 불러올 수 없습니다.");
       const data: DraftData = await res.json();
 
@@ -82,10 +114,7 @@ export default function ApprovePage() {
     }
   }
 
-  async function handleAction(
-    action: "approve" | "reject",
-    useEdited = false
-  ) {
+  async function handleAction(action: "approve" | "reject", useEdited = false) {
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -95,7 +124,7 @@ export default function ApprovePage() {
       }
       const res = await fetch("/api/approve", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAuthHeaders(),
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -122,10 +151,36 @@ export default function ApprovePage() {
     return (
       <Wrapper>
         <Card>
-          <p style={{ color: "#c00" }}>접근 권한이 없습니다.</p>
-          <p style={{ fontSize: 13, color: "#666" }}>
-            URL에 올바른 비밀번호 파라미터를 포함해 주세요.
-          </p>
+          <div style={{ borderBottom: "1px solid #e5e5e5", paddingBottom: 16, marginBottom: 20 }}>
+            <h1 style={{ margin: 0, fontSize: 18 }}>AND센터 X 포스팅 승인</h1>
+          </div>
+          <form onSubmit={handleAuth}>
+            <Label>비밀번호</Label>
+            <input
+              type="password"
+              name="password"
+              placeholder="승인 페이지 비밀번호 입력"
+              required
+              autoFocus
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "10px 12px",
+                fontSize: 14,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                marginTop: 4,
+                marginBottom: 12,
+                fontFamily: "inherit",
+              }}
+            />
+            {authError && (
+              <p style={{ color: "#c00", fontSize: 13, margin: "0 0 12px" }}>{authError}</p>
+            )}
+            <button type="submit" style={btnStyle("#1a7f37")}>
+              로그인
+            </button>
+          </form>
         </Card>
       </Wrapper>
     );
@@ -190,31 +245,26 @@ export default function ApprovePage() {
         {/* 기사 정보 */}
         <section style={{ marginBottom: 20 }}>
           <Label>기사 제목</Label>
-          <p style={{ margin: "4px 0", fontWeight: 600 }}>{draft.articles.title}</p>
-          <a
-            href={draft.articles.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: 13, color: "#1d9bf0" }}
-          >
-            원문 보기 →
-          </a>
+          <p style={{ margin: "4px 0", fontWeight: 600 }}>{draft.articles?.title ?? "(제목 없음)"}</p>
+          {draft.articles?.url && (
+            <a
+              href={draft.articles.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 13, color: "#1d9bf0" }}
+            >
+              원문 보기 →
+            </a>
+          )}
         </section>
 
-        {/* Claude 초안 */}
+        {/* 초안 */}
         <section style={{ marginBottom: 20 }}>
           <Label>Claude 초안</Label>
-          <pre
-            style={{
-              background: "#f0f0f0",
-              padding: "12px 14px",
-              borderRadius: 8,
-              fontSize: 14,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              margin: "4px 0",
-            }}
-          >
+          <pre style={{
+            background: "#f0f0f0", padding: "12px 14px", borderRadius: 8,
+            fontSize: 14, whiteSpace: "pre-wrap", wordBreak: "break-word", margin: "4px 0",
+          }}>
             {draft.draft_text}
           </pre>
         </section>
@@ -341,6 +391,5 @@ function btnStyle(bg: string): React.CSSProperties {
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    opacity: 1,
   };
 }
