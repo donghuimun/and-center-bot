@@ -1,4 +1,5 @@
 import feedparser
+import requests
 from datetime import datetime
 from typing import Optional
 from email.utils import parsedate_to_datetime
@@ -6,13 +7,19 @@ from email.utils import parsedate_to_datetime
 
 RSS_URL = "https://www.dailynk.com/feed"
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; ANDCenterBot/1.0; +https://x-bot-iota.vercel.app)"
+}
+
 
 def parse_feed() -> list[dict]:
     """
     데일리NK RSS 피드를 파싱하여 기사 목록을 반환합니다.
     반환값: [{"rss_id", "title", "url", "published", "content"}, ...]
     """
-    feed = feedparser.parse(RSS_URL)
+    response = requests.get(RSS_URL, headers=HEADERS, timeout=15, allow_redirects=True)
+    response.raise_for_status()
+    feed = feedparser.parse(response.content)
 
     if feed.bozo and not feed.entries:
         raise RuntimeError(f"RSS 파싱 실패: {feed.bozo_exception}")
