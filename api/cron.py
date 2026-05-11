@@ -1,16 +1,16 @@
 """
 GET /api/cron
-Vercel Cron에 의해 평일 5회 호출됩니다.
+Called 5x per weekday by Vercel Cron.
 
-스케줄 (UTC → KST):
-  00:00 → 09:00  한국 오전
-  02:00 → 11:00  한국 오전
-  05:00 → 14:00  한국 오후
-  07:00 → 16:00  한국 오후
-  09:00 → 18:00  한국 저녁
+Schedule (UTC → DC/London):
+  12:00 → DC 08:00 / London 12:00  (core slot)
+  14:00 → DC 10:00 / EU 14:00
+  17:00 → DC 13:00 / EU 17:00
+  21:00 → DC 17:00                  (core slot)
+  00:00 → DC 20:00 (casual browsing)
 
-파이프라인:
-  RSS 파싱 → 중복 체크 → Supabase 저장 → Claude 초안 → Slack 알림
+Pipeline:
+  RSS parse → dedup check → Supabase insert → Claude draft → Slack notify
 """
 import sys
 import os
@@ -44,7 +44,7 @@ class handler(BaseHTTPRequestHandler):
             self._respond(200, result)
         except Exception as e:
             try:
-                notify_error("Cron 파이프라인 전체 실패", str(e))
+                notify_error("Cron pipeline failed", str(e))
             except Exception:
                 pass
             self._respond(500, {"status": "error", "message": str(e)})
@@ -90,7 +90,7 @@ def run_pipeline() -> dict:
                 article_text=article.get("content", ""),
             )
         except Exception as e:
-            notify_error(f"Claude 초안 생성 실패: {article['title']}", str(e))
+            notify_error(f"Claude draft failed: {article['title']}", str(e))
             continue
 
         draft_id = insert_draft(
