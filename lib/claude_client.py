@@ -413,7 +413,7 @@ def generate_draft(url: str, article_text: str, max_retries: int = 3) -> str:
     Claude Sonnet 4.6 single call → English tweet text.
     Retries with exponential backoff on failure.
     """
-    user_prompt = f"Article URL: {url}\n\nBody:\n{article_text[:3000]}"
+    user_prompt = f"Article URL: {url}\n\nArticle body (Korean — extract facts and write the post in native English):\n{article_text[:3000]}"
 
     for attempt in range(max_retries):
         try:

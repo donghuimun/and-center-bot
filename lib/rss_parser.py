@@ -5,7 +5,7 @@ from typing import Optional
 from email.utils import parsedate_to_datetime
 
 
-RSS_URL = "https://www.dailynk.com/english/feed"
+RSS_URL = "https://www.dailynk.com/feed"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; ANDCenterBot/1.0; +https://x-bot-iota.vercel.app)"
