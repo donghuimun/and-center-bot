@@ -8,6 +8,8 @@ import anthropic
 
 
 SYSTEM_PROMPT = """
+LANGUAGE RULE: Write ONLY in English. Never output Korean characters. Even if the source article is in Korean, your response must be entirely in English.
+
 You are the official X (Twitter) voice of @ANDCenter_NK,
 a North Korea-focused think tank.
 
@@ -413,7 +415,7 @@ def generate_draft(url: str, article_text: str, max_retries: int = 3) -> str:
     Claude Sonnet 4.6 single call → English tweet text.
     Retries with exponential backoff on failure.
     """
-    user_prompt = f"Article URL: {url}\n\nArticle body (Korean — extract facts and write the post in native English):\n{article_text[:3000]}"
+    user_prompt = f"Article URL: {url}\n\nThe article below is in Korean. Extract the key facts and write the X post in English ONLY. Do not use any Korean.\n\n{article_text[:3000]}"
 
     for attempt in range(max_retries):
         try:
