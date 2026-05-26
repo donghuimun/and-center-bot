@@ -410,12 +410,26 @@ def _get_client() -> anthropic.Anthropic:
     return _client
 
 
-def generate_draft(url: str, article_text: str, max_retries: int = 3) -> str:
+def generate_draft(url: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> str:
     """
     Claude Sonnet 4.6 single call → English tweet text.
     Retries with exponential backoff on failure.
+    lang: "ko" for Korean source, "en" for English source.
     """
-    user_prompt = f"Article URL: {url}\n\nThe article below is in Korean. Extract the key facts and write the X post in English ONLY. Do not use any Korean.\n\n{article_text[:3000]}"
+    if lang == "en":
+        user_prompt = (
+            f"Article URL: {url}\n\n"
+            "The article below is already in English. "
+            "Extract the key facts and write the X post in English ONLY.\n\n"
+            f"{article_text[:3000]}"
+        )
+    else:
+        user_prompt = (
+            f"Article URL: {url}\n\n"
+            "The article below is in Korean. "
+            "Extract the key facts and write the X post in English ONLY. Do not use any Korean.\n\n"
+            f"{article_text[:3000]}"
+        )
 
     for attempt in range(max_retries):
         try:

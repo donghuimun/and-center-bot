@@ -5,24 +5,23 @@ from typing import Optional
 from email.utils import parsedate_to_datetime
 
 
-RSS_URL = "https://www.dailynk.com/feed"
+FEEDS = [
+    {"url": "https://www.dailynk.com/feed", "lang": "ko"},
+    {"url": "https://www.dailynk.com/english/feed", "lang": "en"},
+]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; ANDCenterBot/1.0; +https://x-bot-iota.vercel.app)"
 }
 
 
-def parse_feed() -> list[dict]:
-    """
-    Parse DailyNK English RSS feed and return article list.
-    Returns: [{"rss_id", "title", "url", "published", "content"}, ...]
-    """
-    response = requests.get(RSS_URL, headers=HEADERS, timeout=15, allow_redirects=True)
+def _parse_single_feed(feed_url: str, lang: str) -> list[dict]:
+    response = requests.get(feed_url, headers=HEADERS, timeout=15, allow_redirects=True)
     response.raise_for_status()
     feed = feedparser.parse(response.content)
 
     if feed.bozo and not feed.entries:
-        raise RuntimeError(f"RSS 파싱 실패: {feed.bozo_exception}")
+        raise RuntimeError(f"RSS 파싱 실패 ({feed_url}): {feed.bozo_exception}")
 
     articles = []
     for entry in feed.entries:
@@ -30,14 +29,12 @@ def parse_feed() -> list[dict]:
         title = entry.get("title", "")
         url = entry.get("link", "")
 
-        # Extract body (summary or content)
         content = ""
         if hasattr(entry, "content") and entry.content:
             content = entry.content[0].get("value", "")
         elif hasattr(entry, "summary"):
             content = entry.summary
 
-        # Parse publish date
         published: Optional[datetime] = None
         if hasattr(entry, "published"):
             try:
@@ -52,6 +49,30 @@ def parse_feed() -> list[dict]:
                 "url": url,
                 "published": published.isoformat() if published else None,
                 "content": content,
+                "lang": lang,
             })
+
+    return articles
+
+
+def parse_feed() -> list[dict]:
+    """
+    Parse DailyNK Korean and English RSS feeds and return combined article list.
+    Returns: [{"rss_id", "title", "url", "published", "content", "lang"}, ...]
+    English feed first (preferred), then Korean.
+    """
+    articles = []
+    errors = []
+
+    for feed_config in FEEDS:
+        try:
+            results = _parse_single_feed(feed_config["url"], feed_config["lang"])
+            articles.extend(results)
+        except Exception as e:
+            errors.append(f"{feed_config['lang']}: {e}")
+            print(f"[rss] feed error ({feed_config['lang']}): {e}")
+
+    if not articles and errors:
+        raise RuntimeError(f"All feeds failed: {'; '.join(errors)}")
 
     return articles

@@ -88,6 +88,7 @@ def run_pipeline() -> dict:
             draft_text = generate_draft(
                 url=article["url"],
                 article_text=article.get("content", ""),
+                lang=article.get("lang", "ko"),
             )
         except Exception as e:
             notify_error(f"Claude draft failed: {article['title']}", str(e))
