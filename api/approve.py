@@ -25,8 +25,6 @@ from lib.supabase_client import get_draft_with_article, approve_draft, reject_dr
 from lib.x_poster import post_tweet, XPostError
 from lib.slack_notifier import notify_posted, notify_rejected, notify_error
 
-MAX_TWEET_CHARS = 280
-
 
 def _verify_auth(headers) -> bool:
     """
@@ -120,13 +118,6 @@ def handle_action(draft_id: str, action: str, edited_text: str | None) -> dict:
 
     # action == "approve"
     final_text = edited_text or draft["draft_text"]
-
-    # ── 서버사이드 글자수 검증 ──────────────────────────────
-    if len(final_text) > MAX_TWEET_CHARS:
-        raise ValueError(
-            f"포스트가 {MAX_TWEET_CHARS}자를 초과합니다 (현재 {len(final_text)}자). "
-            "수정 후 다시 시도해 주세요."
-        )
 
     try:
         tweet_url = post_tweet(final_text)
