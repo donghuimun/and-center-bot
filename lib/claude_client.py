@@ -244,11 +244,11 @@ LENGTH RULE
 -----------------------------------
 
 Main body:
-2-5 sentences preferred.
+3-4 sentences MAX. No exceptions.
 No hard character limit.
 
-Keep it tight — every sentence must earn its place.
-Cut if it doesn't add scene, fact, or tension.
+One hook. One or two facts. One cold final line.
+If you have 5 sentences, cut the weakest one.
 
 -----------------------------------
 EMOJI RULE
