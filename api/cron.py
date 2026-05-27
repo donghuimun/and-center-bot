@@ -87,6 +87,7 @@ def run_pipeline() -> dict:
         try:
             draft_text = generate_draft(
                 url=article["url"],
+                title=article["title"],
                 article_text=article.get("content", ""),
                 lang=article.get("lang", "ko"),
             )

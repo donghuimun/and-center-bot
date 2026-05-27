@@ -411,36 +411,47 @@ def _get_client() -> anthropic.Anthropic:
     return _client
 
 
-def generate_draft(url: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> str:
+def _extract_text(response) -> str:
+    for block in response.content:
+        if getattr(block, "type", None) == "text" and getattr(block, "text", None):
+            return block.text.strip()
+    raise RuntimeError("Claude response did not contain text")
+
+
+def _validate_draft(text: str) -> None:
+    if not text:
+        raise RuntimeError("Claude returned empty draft")
+    if any("가" <= char <= "힣" for char in text):
+        raise RuntimeError("Draft contains Korean characters")
+
+
+def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> str:
     """
     Claude Sonnet 4.6 single call → English tweet text.
     Retries with exponential backoff on failure.
     lang: "ko" for Korean source, "en" for English source.
     """
-    if lang == "en":
-        user_prompt = (
-            f"Article URL: {url}\n\n"
-            "The article below is already in English. "
-            "Extract the key facts and write the X post in English ONLY.\n\n"
-            f"{article_text[:3000]}"
-        )
-    else:
-        user_prompt = (
-            f"Article URL: {url}\n\n"
-            "The article below is in Korean. "
-            "Extract the key facts and write the X post in English ONLY. Do not use any Korean.\n\n"
-            f"{article_text[:3000]}"
-        )
+    source_language = "English" if lang == "en" else "Korean"
+    user_prompt = (
+        f"Article URL: {url}\n"
+        f"Article title: {title}\n"
+        f"Source language: {source_language}\n\n"
+        "Use only the facts present in the article. "
+        "Write the final X post in English only.\n\n"
+        "Article text:\n"
+        f"{article_text[:5000]}"
+    )
 
     for attempt in range(max_retries):
         try:
             response = _get_client().messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=1500,
+                max_tokens=800,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
             )
-            text = response.content[0].text.strip()
+            text = _extract_text(response)
+            _validate_draft(text)
             return text
 
         except Exception as e:
