@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from http.server import BaseHTTPRequestHandler
 import json
 
-from lib.supabase_client import get_draft_with_article, approve_draft, reject_draft, fail_draft, log_approval
+from lib.supabase_client import get_draft_with_article, claim_draft_for_posting, approve_draft, reset_draft_to_pending, reject_draft, fail_draft, log_approval
 from lib.x_poster import post_tweet, XPostError
 from lib.slack_notifier import notify_posted, notify_rejected, notify_error
 
@@ -119,12 +119,18 @@ def handle_action(draft_id: str, action: str, edited_text: str | None) -> dict:
     # action == "approve"
     final_text = edited_text or draft["draft_text"]
 
+    # 원자적으로 pending → posting 전이 (동시 요청 중복 방지)
+    if not claim_draft_for_posting(draft_id):
+        raise ValueError("이미 처리 중이거나 처리된 초안입니다")
+
     try:
         tweet_url = post_tweet(final_text)
     except XPostError as e:
+        if e.error_code == 429:
+            reset_draft_to_pending(draft_id)  # rate limit → 재시도 가능
+            raise RuntimeError("X rate limit — 잠시 후 다시 시도해 주세요.")
         fail_draft(draft_id, str(e))
-        hint = " (rate_limit)" if e.error_code == 429 else ""
-        raise RuntimeError(f"X 포스팅 실패{hint}: {e}")
+        raise RuntimeError(f"X 포스팅 실패: {e}")
     except Exception as e:
         fail_draft(draft_id, str(e))
         raise RuntimeError(f"X 포스팅 실패: {e}")

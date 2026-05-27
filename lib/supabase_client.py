@@ -62,6 +62,26 @@ def get_draft_with_article(draft_id: str) -> dict | None:
     return result.data
 
 
+def claim_draft_for_posting(draft_id: str) -> bool:
+    """pending → posting 원자적 전이. 성공하면 True (이 요청만 포스팅 진행 가능)."""
+    result = (
+        get_client().table("drafts")
+        .update({"status": "posting"})
+        .eq("id", draft_id)
+        .eq("status", "pending")
+        .execute()
+    )
+    return len(result.data) > 0
+
+
+def reset_draft_to_pending(draft_id: str) -> None:
+    """rate limit 등 일시 오류 시 재시도 가능하도록 되돌림."""
+    get_client().table("drafts").update({
+        "status": "pending",
+        "error_message": None,
+    }).eq("id", draft_id).execute()
+
+
 def approve_draft(draft_id: str, posted_url: str, edited_text: str | None = None) -> None:
     payload: dict = {
         "status": "posted",
