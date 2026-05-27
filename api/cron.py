@@ -2,12 +2,12 @@
 GET /api/cron
 Called 5x per weekday by Vercel Cron.
 
-Schedule (UTC → DC/London):
-  12:00 → DC 08:00 / London 12:00  (core slot)
-  14:00 → DC 10:00 / EU 14:00
-  17:00 → DC 13:00 / EU 17:00
-  21:00 → DC 17:00                  (core slot)
-  00:00 → DC 20:00 (casual browsing)
+Schedule (UTC → KST):
+  Sun-Thu 23:10 → Mon-Fri 08:10
+  Mon-Fri 01:25 → Mon-Fri 10:25
+  Mon-Fri 03:40 → Mon-Fri 12:40
+  Mon-Fri 06:00 → Mon-Fri 15:00
+  Mon-Fri 08:10 → Mon-Fri 17:10
 
 Pipeline:
   RSS parse → dedup check → Supabase insert → Claude draft → Slack notify
