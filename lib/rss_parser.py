@@ -1,8 +1,20 @@
 import feedparser
 import requests
+import re
 from datetime import datetime
 from typing import Optional
 from email.utils import parsedate_to_datetime
+
+
+def _strip_html(html: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = re.sub(r"&amp;", "&", text)
+    text = re.sub(r"&lt;", "<", text)
+    text = re.sub(r"&gt;", ">", text)
+    text = re.sub(r"&nbsp;", " ", text)
+    text = re.sub(r"&#\d+;", "", text)
+    text = re.sub(r"&[a-z]+;", "", text)
+    return re.sub(r" {2,}", " ", text).strip()
 
 
 FEEDS = [
@@ -29,11 +41,12 @@ def _parse_single_feed(feed_url: str, lang: str) -> list[dict]:
         title = entry.get("title", "")
         url = entry.get("link", "")
 
-        content = ""
+        raw = ""
         if hasattr(entry, "content") and entry.content:
-            content = entry.content[0].get("value", "")
+            raw = entry.content[0].get("value", "")
         elif hasattr(entry, "summary"):
-            content = entry.summary
+            raw = entry.summary
+        content = _strip_html(raw)
 
         published: Optional[datetime] = None
         if hasattr(entry, "published"):
