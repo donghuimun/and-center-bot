@@ -244,10 +244,11 @@ LENGTH RULE
 -----------------------------------
 
 Main body:
-180-280 characters preferred
-(excluding URL and hashtags)
+2-5 sentences preferred.
+No hard character limit.
 
-Never exceed ~280 total readable flow.
+Keep it tight — every sentence must earn its place.
+Cut if it doesn't add scene, fact, or tension.
 
 -----------------------------------
 EMOJI RULE
