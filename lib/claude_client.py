@@ -2,6 +2,7 @@
 Claude Sonnet 4.6 single call → English tweet text generation
 """
 import os
+import re
 import time
 
 import anthropic
@@ -90,38 +91,33 @@ HOOK FORMULA
 -----------------------------------
 
 Every post MUST begin with ONE of these hook styles.
+Choose based on what the article actually contains.
 
-1. SHOCK NUMBER
-"North Korean gasoline prices jumped 60% in a month."
-
-2. DIRECT QUOTE
-"'South Korean accents now sound natural to teenagers.'"
-
-3. CONTRADICTION
-"North Korean taxis take U.S. dollars."
-
-4. QUESTION
-"What does farmland rent cost in North Korea?"
-
-5. SCENE
+1. SCENE
 "A provincial official spent another day running on foot."
 
-6. BEFORE vs NOW
-"In 2019, pork cost 8,000 won per kilo.
-Now it costs 100,000."
+2. SHOCK NUMBER
+"North Korean gasoline prices jumped 60% in a month."
 
-7. FAMILIAR + UNFAMILIAR
-"Pyongyang has convenience stores.
-Almost nobody can enter them."
+3. DIRECT QUOTE
+"'South Korean accents now sound natural to teenagers.'"
 
-8. PROVOCATIVE CLAIM
-"Kim Jong Un fears this more than missiles."
+4. CONTRADICTION
+"North Korean taxis take U.S. dollars."
 
-9. COMMAND
-"Look at this satellite image."
+-----------------------------------
+HOOK SELECTION RULE
+-----------------------------------
 
-10. TIME PRESSURE
-"Since March, around 100 North Korean workers have crossed into China every day."
+Use this priority order:
+
+1. If the article contains a vivid human scene → SCENE hook
+2. If the article contains a surprising number → SHOCK NUMBER hook
+3. If the article contains a strong direct quote → DIRECT QUOTE hook
+4. If the article shows a contradiction between state claims and reality → CONTRADICTION hook
+
+Do not invent a hook the article does not support.
+Do not use question hooks — they read as blog, not institutional.
 
 -----------------------------------
 STRUCTURE
@@ -351,34 +347,30 @@ https://www.dailynk.com/english/xxx
 #NorthKorea #Economy #DailyNK #ANDCenter
 
 
-Example 3 — Contrast Hook
+Example 3 — Shock Number Hook
 
-In 2019, pork cost 8,000 won per kilo.
-Now it costs 100,000.
+North Korean pork prices are more than 12 times higher than in 2019.
 
 ASF returned. Fewer than a third of households still raise pigs. The state ordered containment. It did not provide feed.
 
-People moved first. The virus followed. 💸
+The market moved. The state watched. 💸
 
 https://www.dailynk.com/english/xxx
 
-#NorthKorea #FoodSecurity #DailyNK #ANDCenter
+#NorthKorea #NorthKoreaEconomy #FoodSecurity #DailyNK #ANDCenter
 
 
-Example 4 — Shock Number Hook
+Example 4 — Contradiction Hook
 
-Since March, around 100 North Korean workers have reportedly crossed into China every day.
+North Korea is sending workers abroad while calling them "trainees."
 
-Not as laborers.
-As "trainees."
+Around 100 cross into China every day. Sanctions ban labor exports. The paperwork says otherwise.
 
-Within months, the total could reach 10,000.
-
-Sanctions developed a price tag. Workers pay it.
+A legal loophole. A state wage. Workers pay the difference.
 
 https://www.dailynk.com/english/xxx
 
-#NorthKorea #ForcedLabor #China #DailyNK #ANDCenter
+#NorthKorea #DPRK #ForcedLabor #China #DailyNK #ANDCenter
 
 -----------------------------------
 OUTPUT FORMAT
@@ -418,11 +410,16 @@ def _extract_text(response) -> str:
     raise RuntimeError("Claude response did not contain text")
 
 
-def _validate_draft(text: str) -> None:
+def _validate_draft(text: str, url: str) -> None:
     if not text:
         raise RuntimeError("Claude returned empty draft")
     if any("가" <= char <= "힣" for char in text):
         raise RuntimeError("Draft contains Korean characters")
+    if url not in text:
+        raise RuntimeError("Draft is missing article URL")
+    hashtag_count = len(re.findall(r"#[A-Za-z0-9_]+", text))
+    if hashtag_count < 3:
+        raise RuntimeError(f"Draft has too few hashtags ({hashtag_count})")
 
 
 def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> str:
@@ -451,7 +448,7 @@ def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", ma
                 messages=[{"role": "user", "content": user_prompt}],
             )
             text = _extract_text(response)
-            _validate_draft(text)
+            _validate_draft(text, url)
             return text
 
         except Exception as e:
