@@ -27,7 +27,6 @@ type PageState =
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
-const MAX_CHARS = 280;
 const AUTH_COOKIE = "approve_token"; // 실제 비밀번호를 저장 (Bearer 토큰으로 사용)
 const COOKIE_EXPIRES_DAYS = 7; // 7일
 
@@ -37,10 +36,6 @@ function getAuthHeaders(): HeadersInit {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-}
-
-function charCount(text: string) {
-  return text.length;
 }
 
 // ─────────────────────────────────────────
@@ -230,8 +225,7 @@ export default function ApprovePage() {
   }
 
   const { draft } = pageState;
-  const count = charCount(editedText);
-  const overLimit = count > MAX_CHARS;
+  const count = editedText.length;
 
   return (
     <Wrapper>
@@ -280,14 +274,8 @@ export default function ApprovePage() {
             }}
           >
             <Label>수정 (선택)</Label>
-            <span
-              style={{
-                fontSize: 13,
-                color: overLimit ? "#c00" : "#888",
-                fontWeight: overLimit ? 700 : 400,
-              }}
-            >
-              {count} / {MAX_CHARS}
+            <span style={{ fontSize: 13, color: "#888" }}>
+              {count}자
             </span>
           </div>
           <textarea
@@ -300,7 +288,7 @@ export default function ApprovePage() {
               padding: "10px 12px",
               fontSize: 14,
               borderRadius: 8,
-              border: `1px solid ${overLimit ? "#c00" : "#ccc"}`,
+              border: "1px solid #ccc",
               resize: "vertical",
               fontFamily: "inherit",
             }}
@@ -317,7 +305,7 @@ export default function ApprovePage() {
             {submitting ? "처리 중..." : "승인"}
           </button>
           <button
-            disabled={submitting || overLimit || editedText === draft.draft_text}
+            disabled={submitting || editedText === draft.draft_text}
             onClick={() => handleAction("approve", true)}
             style={btnStyle("#1d9bf0")}
           >
