@@ -1,13 +1,12 @@
 """
 GET /api/cron
-Called 5x per weekday by Vercel Cron.
+Called 4x per weekday by Vercel Cron.
 
-Schedule (UTC → KST):
-  Sun-Thu 23:10 → Mon-Fri 08:10
-  Mon-Fri 01:25 → Mon-Fri 10:25
-  Mon-Fri 03:40 → Mon-Fri 12:40
-  Mon-Fri 06:00 → Mon-Fri 15:00
-  Mon-Fri 08:10 → Mon-Fri 17:10
+Schedule (UTC → KST / US ET):
+  Sun-Thu 23:10 → Mon-Fri 08:10 KST (한국 아침 뉴스 사이클)
+  Mon-Fri 03:40 → Mon-Fri 12:40 KST
+  Mon-Fri 11:00 → Mon-Fri 20:00 KST = 07:00 ET (미국 동부 아침)
+  Mon-Fri 13:30 → Mon-Fri 22:30 KST = 09:30 ET (미국 동부 오전)
 
 Pipeline:
   RSS parse → dedup check → Supabase insert → Claude draft → Slack notify
@@ -85,7 +84,7 @@ def run_pipeline() -> dict:
 
         # 초안 생성 성공 후에만 article 저장 — 실패 시 다음 런에서 재시도됨
         try:
-            draft_text = generate_draft(
+            draft_text, hook_type = generate_draft(
                 url=article["url"],
                 title=article["title"],
                 article_text=article.get("content", ""),
@@ -100,11 +99,13 @@ def run_pipeline() -> dict:
             title=article["title"],
             url=article["url"],
             published=article.get("published"),
+            image_url=article.get("image_url"),
         )
 
         draft_id = insert_draft(
             article_id=article_id,
             draft_text=draft_text,
+            hook_type=hook_type,
         )
         draft_count += 1
 

@@ -28,12 +28,13 @@ def article_exists(rss_id: str) -> bool:
     return len(result.data) > 0
 
 
-def insert_article(rss_id: str, title: str, url: str, published: str | None) -> str:
+def insert_article(rss_id: str, title: str, url: str, published: str | None, image_url: str | None = None) -> str:
     result = get_client().table("articles").insert({
         "rss_id": rss_id,
         "title": title,
         "url": url,
         "published": published,
+        "image_url": image_url,
     }).execute()
     return result.data[0]["id"]
 
@@ -42,11 +43,12 @@ def insert_article(rss_id: str, title: str, url: str, published: str | None) -> 
 # drafts
 # ─────────────────────────────────────────
 
-def insert_draft(article_id: str, draft_text: str) -> str:
+def insert_draft(article_id: str, draft_text: str, hook_type: str | None = None) -> str:
     result = get_client().table("drafts").insert({
         "article_id": article_id,
         "draft_text": draft_text,
         "status": "pending",
+        "hook_type": hook_type,
     }).execute()
     return result.data[0]["id"]
 
@@ -54,7 +56,7 @@ def insert_draft(article_id: str, draft_text: str) -> str:
 def get_draft_with_article(draft_id: str) -> dict | None:
     result = (
         get_client().table("drafts")
-        .select("*, articles(title, url)")
+        .select("*, articles(title, url, image_url)")
         .eq("id", draft_id)
         .single()
         .execute()

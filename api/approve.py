@@ -129,7 +129,8 @@ def handle_action(draft_id: str, action: str, edited_text: str | None) -> dict:
         raise ValueError("이미 처리 중이거나 처리된 초안입니다")
 
     try:
-        tweet_url = post_tweet(final_text)
+        article = draft.get("articles") or {}
+        tweet_url = post_tweet(final_text, image_url=article.get("image_url"))
     except XPostError as e:
         if e.error_code == 429:
             reset_draft_to_pending(draft_id)  # rate limit → 재시도 가능

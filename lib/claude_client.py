@@ -182,13 +182,33 @@ https://www.dailynk.com/english/xxx
 OUTPUT RULES
 -----------------------------------
 
-Output ONLY the final post text.
+Output the final post text, then on the very last line output exactly:
+HOOK: <type>
+where <type> is one of: scene, contradiction, number, quote, observation.
+The HOOK line is metadata and will be removed before posting.
+
 No markdown.
 No explanations.
 No JSON.
-No labels.
+No other labels.
 No intro text.
 """
+
+
+HOOK_TYPES = ("scene", "contradiction", "number", "quote", "observation")
+_HOOK_RE = re.compile(r"\n\s*HOOK:\s*([A-Za-z]+)\s*$")
+
+# X → 기사 유입 측정용 (DailyNK GA에서 캠페인별 조회 가능)
+UTM_PARAMS = "utm_source=twitter&utm_medium=social&utm_campaign=andcenter_bot"
+
+
+def _split_hook(text: str) -> tuple[str, str | None]:
+    """마지막 줄의 'HOOK: <type>' 메타데이터를 분리. 없거나 미정의 유형이면 None."""
+    m = _HOOK_RE.search(text)
+    if not m:
+        return text, None
+    hook = m.group(1).lower()
+    return text[:m.start()].strip(), hook if hook in HOOK_TYPES else None
 
 
 _client: anthropic.Anthropic | None = None
@@ -236,9 +256,10 @@ def _validate_draft(text: str, url: str) -> None:
         raise RuntimeError(f"Draft has too many hashtags ({hashtag_count})")
 
 
-def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> str:
+def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> tuple[str, str | None]:
     """
-    Claude Sonnet 4.6 single call → English tweet text.
+    Claude Sonnet 4.6 single call → (English tweet text, hook_type).
+    트윗 텍스트의 기사 URL에는 UTM 파라미터가 부착됩니다.
     Retries with exponential backoff on failure.
     lang: "ko" for Korean source, "en" for English source.
     """
@@ -262,9 +283,10 @@ def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", ma
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
             )
-            text = _extract_text(response)
+            text, hook_type = _split_hook(_extract_text(response))
             _validate_draft(text, url)
-            return text
+            sep = "&" if "?" in url else "?"
+            return text.replace(url, f"{url}{sep}{UTM_PARAMS}"), hook_type
 
         except Exception as e:
             if attempt < max_retries - 1:

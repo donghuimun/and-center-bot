@@ -6,6 +6,12 @@ from typing import Optional
 from email.utils import parsedate_to_datetime
 
 
+def _first_image(html: str) -> Optional[str]:
+    """본문 HTML에서 첫 번째 이미지 URL 추출 (X 포스팅 첨부용)."""
+    m = re.search(r'<img[^>]+src="(https?://[^"]+)"', html)
+    return m.group(1) if m else None
+
+
 def _strip_html(html: str) -> str:
     text = re.sub(r"<[^>]+>", " ", html)
     text = re.sub(r"&amp;", "&", text)
@@ -47,6 +53,7 @@ def _parse_single_feed(feed_url: str, lang: str) -> list[dict]:
         elif hasattr(entry, "summary"):
             raw = entry.summary
         content = _strip_html(raw)
+        image_url = _first_image(raw)
 
         published: Optional[datetime] = None
         if hasattr(entry, "published"):
@@ -62,6 +69,7 @@ def _parse_single_feed(feed_url: str, lang: str) -> list[dict]:
                 "url": url,
                 "published": published.isoformat() if published else None,
                 "content": content,
+                "image_url": image_url,
                 "lang": lang,
             })
 

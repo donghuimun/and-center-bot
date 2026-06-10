@@ -1,5 +1,8 @@
+import io
 import os
 import re
+
+import httpx
 import tweepy
 
 
@@ -28,7 +31,28 @@ def get_client() -> tweepy.Client:
     )
 
 
-def post_tweet(text: str) -> str:
+def _upload_media(image_url: str) -> str | None:
+    """기사 이미지를 다운로드해 X에 업로드. 실패하면 None (텍스트만 포스팅)."""
+    try:
+        resp = httpx.get(image_url, timeout=10, follow_redirects=True)
+        resp.raise_for_status()
+
+        auth = tweepy.OAuth1UserHandler(
+            os.environ["X_API_KEY"],
+            os.environ["X_API_SECRET"],
+            os.environ["X_ACCESS_TOKEN"],
+            os.environ["X_ACCESS_TOKEN_SECRET"],
+        )
+        api = tweepy.API(auth)
+        filename = image_url.split("?")[0].split("/")[-1] or "image.jpg"
+        media = api.media_upload(filename=filename, file=io.BytesIO(resp.content))
+        return media.media_id_string
+    except Exception as e:
+        print(f"[x] media upload failed ({image_url}): {e}")
+        return None
+
+
+def post_tweet(text: str, image_url: str | None = None) -> str:
     """
     X에 트윗을 포스팅하고 트윗 URL을 반환합니다.
     반환: "https://x.com/ANDCenter_NK/status/{tweet_id}"
@@ -40,9 +64,11 @@ def post_tweet(text: str) -> str:
       401 — 인증 실패  → XPostError(error_code=401)
     """
     client = get_client()
+    media_id = _upload_media(image_url) if image_url else None
 
     try:
-        response = client.create_tweet(text=text)
+        kwargs = {"media_ids": [media_id]} if media_id else {}
+        response = client.create_tweet(text=text, **kwargs)
         tweet_id = response.data["id"]
         return f"https://x.com/ANDCenter_NK/status/{tweet_id}"
 
