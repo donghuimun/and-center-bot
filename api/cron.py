@@ -32,8 +32,13 @@ MAX_ARTICLES_PER_RUN = 2  # Vercel Free 티어 10초 제한 대응
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         # ── CRON_SECRET 인증 ──────────────────────────────
+        # 프로덕션에서 미설정 시 차단 (fail-closed) — Vercel 환경변수에 CRON_SECRET 필수
         cron_secret = os.environ.get("CRON_SECRET", "")
-        if cron_secret:
+        if not cron_secret:
+            if os.environ.get("VERCEL_ENV") == "production":
+                self._respond(401, {"error": "CRON_SECRET not configured"})
+                return
+        else:
             auth = self.headers.get("Authorization", "")
             if auth != f"Bearer {cron_secret}":
                 self._respond(401, {"error": "Unauthorized"})
@@ -76,14 +81,9 @@ def run_pipeline() -> dict:
         if article_exists(rss_id):
             continue
 
-        article_id = insert_article(
-            rss_id=rss_id,
-            title=article["title"],
-            url=article["url"],
-            published=article.get("published"),
-        )
         new_count += 1
 
+        # 초안 생성 성공 후에만 article 저장 — 실패 시 다음 런에서 재시도됨
         try:
             draft_text = generate_draft(
                 url=article["url"],
@@ -94,6 +94,13 @@ def run_pipeline() -> dict:
         except Exception as e:
             notify_error(f"Claude draft failed: {article['title']}", str(e))
             continue
+
+        article_id = insert_article(
+            rss_id=rss_id,
+            title=article["title"],
+            url=article["url"],
+            published=article.get("published"),
+        )
 
         draft_id = insert_draft(
             article_id=article_id,

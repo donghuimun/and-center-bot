@@ -18,8 +18,8 @@ def _strip_html(html: str) -> str:
 
 
 FEEDS = [
-    {"url": "https://www.dailynk.com/feed", "lang": "ko"},
     {"url": "https://www.dailynk.com/english/feed", "lang": "en"},
+    {"url": "https://www.dailynk.com/feed", "lang": "ko"},
 ]
 
 HEADERS = {

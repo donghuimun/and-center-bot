@@ -22,18 +22,18 @@ from http.server import BaseHTTPRequestHandler
 import json
 
 from lib.supabase_client import get_draft_with_article, claim_draft_for_posting, approve_draft, reset_draft_to_pending, reject_draft, fail_draft, log_approval
-from lib.x_poster import post_tweet, XPostError
+from lib.x_poster import post_tweet, tweet_length, XPostError
 from lib.slack_notifier import notify_posted, notify_rejected, notify_error
 
 
 def _verify_auth(headers) -> bool:
     """
     Authorization: Bearer <password> 헤더를 APPROVE_PASSWORD 환경변수와 비교합니다.
-    APPROVE_PASSWORD 미설정이면 항상 통과 (개발 환경 편의).
+    APPROVE_PASSWORD 미설정 시: 프로덕션은 차단(fail-closed), 그 외 환경은 통과.
     """
     required = os.environ.get("APPROVE_PASSWORD", "")
     if not required:
-        return True
+        return os.environ.get("VERCEL_ENV") != "production"
 
     auth_header = headers.get("Authorization") or headers.get("authorization") or ""
     if not auth_header.startswith("Bearer "):
@@ -118,6 +118,11 @@ def handle_action(draft_id: str, action: str, edited_text: str | None) -> dict:
 
     # action == "approve"
     final_text = edited_text or draft["draft_text"]
+
+    # 280자 초과 시 X API 403으로 초안이 failed 되는 것을 사전 차단 (pending 유지)
+    weighted = tweet_length(final_text)
+    if weighted > 280:
+        raise ValueError(f"트윗이 280자를 초과합니다 ({weighted}자, URL은 23자로 계산). 본문을 줄여 주세요.")
 
     # 원자적으로 pending → posting 전이 (동시 요청 중복 방지)
     if not claim_draft_for_posting(draft_id):

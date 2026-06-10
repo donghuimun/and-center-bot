@@ -10,7 +10,7 @@ function getSupabase() {
 
 function verifyAuth(request: NextRequest): boolean {
   const password = process.env.APPROVE_PASSWORD;
-  if (!password) return true; // 미설정 시 통과 (개발 환경)
+  if (!password) return process.env.VERCEL_ENV !== "production"; // 프로덕션 미설정 시 차단 (fail-closed)
   const auth = request.headers.get("Authorization") ?? "";
   return auth === `Bearer ${password}`;
 }

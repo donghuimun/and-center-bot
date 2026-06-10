@@ -55,7 +55,7 @@ LENGTH AND SHAPE
 
 Main body:
 - 2-3 short sentences.
-- 260 characters or fewer before the URL.
+- 230 characters or fewer before the URL.
 - One idea only.
 - No thread-style setup.
 - No full article recap.
@@ -217,8 +217,13 @@ def _validate_draft(text: str, url: str) -> None:
         raise RuntimeError("Draft is missing article URL")
 
     body = text.split(url, 1)[0].strip()
-    if len(body) > 260:
+    if len(body) > 230:
         raise RuntimeError(f"Draft body is too long ({len(body)} chars)")
+
+    # X 가중 길이: URL은 t.co 23자로 계산됨
+    weighted_total = len(text.replace(url, "x" * 23))
+    if weighted_total > 280:
+        raise RuntimeError(f"Draft exceeds 280 weighted chars ({weighted_total})")
 
     sentence_count = len(re.findall(r"[.!?](?:\s|$)", body))
     if sentence_count > 3:
@@ -244,7 +249,7 @@ def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", ma
         f"Source language: {source_language}\n\n"
         "Use only the facts present in the article. "
         "Write one short, quoteable X post in English only. "
-        "Use one idea, 2-3 short sentences, and keep the body under 260 characters before the URL.\n\n"
+        "Use one idea, 2-3 short sentences, and keep the body under 230 characters before the URL.\n\n"
         "Article text:\n"
         f"{article_text[:5000]}"
     )

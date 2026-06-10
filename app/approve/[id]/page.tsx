@@ -30,6 +30,11 @@ type PageState =
 const AUTH_COOKIE = "approve_token"; // 실제 비밀번호를 저장 (Bearer 토큰으로 사용)
 const COOKIE_EXPIRES_DAYS = 7; // 7일
 
+// X 기준 가중 길이 — URL은 길이와 무관하게 t.co 23자로 계산
+function tweetLength(text: string): number {
+  return text.replace(/https?:\/\/\S+/g, "x".repeat(23)).length;
+}
+
 function getAuthHeaders(): HeadersInit {
   const token = Cookies.get(AUTH_COOKIE) ?? "";
   return {
@@ -225,7 +230,8 @@ export default function ApprovePage() {
   }
 
   const { draft } = pageState;
-  const count = editedText.length;
+  const count = tweetLength(editedText);
+  const overLimit = count > 280;
 
   return (
     <Wrapper>
@@ -274,8 +280,8 @@ export default function ApprovePage() {
             }}
           >
             <Label>수정 (선택)</Label>
-            <span style={{ fontSize: 13, color: "#888" }}>
-              {count}자
+            <span style={{ fontSize: 13, color: overLimit ? "#c00" : "#888" }}>
+              {count} / 280자 (URL은 23자로 계산)
             </span>
           </div>
           <textarea
@@ -305,7 +311,7 @@ export default function ApprovePage() {
             {submitting ? "처리 중..." : "승인"}
           </button>
           <button
-            disabled={submitting || editedText === draft.draft_text}
+            disabled={submitting || editedText === draft.draft_text || overLimit}
             onClick={() => handleAction("approve", true)}
             style={btnStyle("#1d9bf0")}
           >

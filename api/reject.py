@@ -23,7 +23,8 @@ from lib.slack_notifier import notify_rejected
 def _verify_auth(headers) -> bool:
     required = os.environ.get("APPROVE_PASSWORD", "")
     if not required:
-        return True
+        # 프로덕션에서 미설정 시 차단 (fail-closed)
+        return os.environ.get("VERCEL_ENV") != "production"
     auth_header = headers.get("Authorization") or headers.get("authorization") or ""
     if not auth_header.startswith("Bearer "):
         return False

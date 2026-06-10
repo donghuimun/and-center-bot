@@ -5,8 +5,15 @@ export async function POST(request: NextRequest) {
 
   const correctPassword = process.env.APPROVE_PASSWORD;
 
-  // APPROVE_PASSWORD 미설정 시 인증 불필요 (개발 환경)
-  if (!correctPassword || password === correctPassword) {
+  // APPROVE_PASSWORD 미설정 시: 프로덕션은 차단(fail-closed), 그 외 환경은 통과
+  if (!correctPassword) {
+    if (process.env.VERCEL_ENV === "production") {
+      return NextResponse.json({ error: "APPROVE_PASSWORD가 설정되지 않았습니다." }, { status: 401 });
+    }
+    return NextResponse.json({ success: true });
+  }
+
+  if (password === correctPassword) {
     return NextResponse.json({ success: true });
   }
 

@@ -1,5 +1,15 @@
 import os
+import re
 import tweepy
+
+
+_URL_RE = re.compile(r"https?://\S+")
+X_URL_LENGTH = 23  # X는 모든 URL을 t.co 23자로 계산
+
+
+def tweet_length(text: str) -> int:
+    """X 기준 가중 길이 — URL은 길이와 무관하게 23자로 계산합니다."""
+    return len(_URL_RE.sub("x" * X_URL_LENGTH, text))
 
 
 class XPostError(Exception):
