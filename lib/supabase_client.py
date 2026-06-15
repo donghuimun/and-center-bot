@@ -37,6 +37,15 @@ def _is_missing_image_url_error(error: Exception) -> bool:
     )
 
 
+def _is_missing_hook_type_error(error: Exception) -> bool:
+    message = str(error)
+    return (
+        "PGRST204" in message
+        and "hook_type" in message
+        and "drafts" in message
+    )
+
+
 def insert_article(rss_id: str, title: str, url: str, published: str | None, image_url: str | None = None) -> str:
     payload = {
         "rss_id": rss_id,
@@ -63,12 +72,22 @@ def insert_article(rss_id: str, title: str, url: str, published: str | None, ima
 # ─────────────────────────────────────────
 
 def insert_draft(article_id: str, draft_text: str, hook_type: str | None = None) -> str:
-    result = get_client().table("drafts").insert({
+    payload = {
         "article_id": article_id,
         "draft_text": draft_text,
         "status": "pending",
-        "hook_type": hook_type,
-    }).execute()
+    }
+    if hook_type:
+        payload["hook_type"] = hook_type
+
+    try:
+        result = get_client().table("drafts").insert(payload).execute()
+    except Exception as e:
+        if not _is_missing_hook_type_error(e):
+            raise
+        payload.pop("hook_type", None)
+        result = get_client().table("drafts").insert(payload).execute()
+
     return result.data[0]["id"]
 
 
