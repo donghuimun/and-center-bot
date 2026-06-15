@@ -28,6 +28,28 @@ def article_exists(rss_id: str) -> bool:
     return len(result.data) > 0
 
 
+def get_article_by_rss_id(rss_id: str) -> dict | None:
+    result = (
+        get_client().table("articles")
+        .select("id")
+        .eq("rss_id", rss_id)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def article_has_draft(article_id: str) -> bool:
+    result = (
+        get_client().table("drafts")
+        .select("id")
+        .eq("article_id", article_id)
+        .limit(1)
+        .execute()
+    )
+    return len(result.data) > 0
+
+
 def _is_missing_image_url_error(error: Exception) -> bool:
     message = str(error).lower()
     return (

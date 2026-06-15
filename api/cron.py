@@ -20,7 +20,7 @@ from http.server import BaseHTTPRequestHandler
 import json
 
 from lib.rss_parser import parse_feed
-from lib.supabase_client import article_exists, insert_article, insert_draft
+from lib.supabase_client import article_has_draft, get_article_by_rss_id, insert_article, insert_draft
 from lib.claude_client import generate_draft
 from lib.slack_notifier import notify_new_draft, notify_error
 
@@ -77,7 +77,8 @@ def run_pipeline() -> dict:
             break
 
         rss_id = article["rss_id"]
-        if article_exists(rss_id):
+        existing_article = get_article_by_rss_id(rss_id)
+        if existing_article and article_has_draft(existing_article["id"]):
             continue
 
         new_count += 1
@@ -94,13 +95,16 @@ def run_pipeline() -> dict:
             notify_error(f"Claude draft failed: {article['title']}", str(e))
             continue
 
-        article_id = insert_article(
-            rss_id=rss_id,
-            title=article["title"],
-            url=article["url"],
-            published=article.get("published"),
-            image_url=article.get("image_url"),
-        )
+        if existing_article:
+            article_id = existing_article["id"]
+        else:
+            article_id = insert_article(
+                rss_id=rss_id,
+                title=article["title"],
+                url=article["url"],
+                published=article.get("published"),
+                image_url=article.get("image_url"),
+            )
 
         draft_id = insert_draft(
             article_id=article_id,
