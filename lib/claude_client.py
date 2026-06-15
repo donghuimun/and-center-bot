@@ -436,7 +436,7 @@ def _validate_draft(text: str, url: str) -> None:
         raise RuntimeError(f"Draft has too many hashtags ({hashtag_count})")
 
 
-def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", max_retries: int = 3) -> tuple[str, None]:
+def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", max_retries: int = 4) -> tuple[str, None]:
     """
     Claude Sonnet 4.6 single call → (English tweet text, None).
     트윗 텍스트의 기사 URL에는 UTM 파라미터가 부착됩니다.
@@ -456,23 +456,39 @@ def generate_draft(url: str, title: str, article_text: str, lang: str = "ko", ma
         f"{article_text[:5000]}"
     )
 
+    messages: list[dict] = [{"role": "user", "content": user_prompt}]
+    last_error: Exception | None = None
+    last_text: str = ""
+
     for attempt in range(max_retries):
         try:
             response = _get_client().messages.create(
                 model="claude-sonnet-4-6",
                 max_tokens=500,
                 system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
+                messages=messages,
             )
-            text = _extract_text(response)
-            _validate_draft(text, url)
+            last_text = _extract_text(response)
+            _validate_draft(last_text, url)
             sep = "&" if "?" in url else "?"
-            return text.replace(url, f"{url}{sep}{UTM_PARAMS}"), None
+            return last_text.replace(url, f"{url}{sep}{UTM_PARAMS}"), None
 
         except Exception as e:
+            last_error = e
             if attempt < max_retries - 1:
                 wait = 2 ** (attempt + 1)
                 print(f"[claude] attempt {attempt + 1} failed: {e}. retry in {wait}s")
                 time.sleep(wait)
+                # Feed the error back so Claude can self-correct on the next attempt
+                body_len = len(last_text.split(url, 1)[0].strip()) if url in last_text else "?"
+                messages = [
+                    {"role": "user", "content": user_prompt},
+                    {"role": "assistant", "content": last_text},
+                    {"role": "user", "content": (
+                        f"Your previous draft failed validation: {e}. "
+                        f"The body (text before the URL) was {body_len} chars — it must be ≤220. "
+                        "Please rewrite, cutting sentences or merging lines until the body is under 200 chars."
+                    )},
+                ]
             else:
-                raise RuntimeError(f"Claude API failed ({max_retries} attempts): {e}")
+                raise RuntimeError(f"Claude API failed ({max_retries} attempts): {last_error}")
