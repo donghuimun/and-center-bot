@@ -29,18 +29,18 @@ def article_exists(rss_id: str) -> bool:
 
 
 def _is_missing_image_url_error(error: Exception) -> bool:
-    message = str(error)
+    message = str(error).lower()
     return (
-        "PGRST204" in message
+        ("pgrst204" in message or "42703" in message or "does not exist" in message)
         and "image_url" in message
         and "articles" in message
     )
 
 
 def _is_missing_hook_type_error(error: Exception) -> bool:
-    message = str(error)
+    message = str(error).lower()
     return (
-        "PGRST204" in message
+        ("pgrst204" in message or "42703" in message or "does not exist" in message)
         and "hook_type" in message
         and "drafts" in message
     )
