@@ -28,14 +28,33 @@ def article_exists(rss_id: str) -> bool:
     return len(result.data) > 0
 
 
+def _is_missing_image_url_error(error: Exception) -> bool:
+    message = str(error)
+    return (
+        "PGRST204" in message
+        and "image_url" in message
+        and "articles" in message
+    )
+
+
 def insert_article(rss_id: str, title: str, url: str, published: str | None, image_url: str | None = None) -> str:
-    result = get_client().table("articles").insert({
+    payload = {
         "rss_id": rss_id,
         "title": title,
         "url": url,
         "published": published,
-        "image_url": image_url,
-    }).execute()
+    }
+    if image_url:
+        payload["image_url"] = image_url
+
+    try:
+        result = get_client().table("articles").insert(payload).execute()
+    except Exception as e:
+        if not _is_missing_image_url_error(e):
+            raise
+        payload.pop("image_url", None)
+        result = get_client().table("articles").insert(payload).execute()
+
     return result.data[0]["id"]
 
 
@@ -54,13 +73,24 @@ def insert_draft(article_id: str, draft_text: str, hook_type: str | None = None)
 
 
 def get_draft_with_article(draft_id: str) -> dict | None:
-    result = (
-        get_client().table("drafts")
-        .select("*, articles(title, url, image_url)")
-        .eq("id", draft_id)
-        .single()
-        .execute()
-    )
+    try:
+        result = (
+            get_client().table("drafts")
+            .select("*, articles(title, url, image_url)")
+            .eq("id", draft_id)
+            .single()
+            .execute()
+        )
+    except Exception as e:
+        if not _is_missing_image_url_error(e):
+            raise
+        result = (
+            get_client().table("drafts")
+            .select("*, articles(title, url)")
+            .eq("id", draft_id)
+            .single()
+            .execute()
+        )
     return result.data
 
 
